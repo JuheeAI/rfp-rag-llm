@@ -12,8 +12,13 @@ dependencies:
   - openssl
   - pkg-config
   - cryptography
-  - sentence-transformers
+  - pytorch           
+  - faiss-cpu        
+  - sentence-transformers  
+  - langchain         
   - pip:
+      - langchain-openai
+      - transformers
       - pdfminer.six
       - pyhwp
       - ipykernel
