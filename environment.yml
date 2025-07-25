@@ -1,0 +1,20 @@
+name: rfp-rag
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pandas
+  - matplotlib
+  - seaborn
+  - cffi
+  - pip
+  - rust
+  - openssl
+  - pkg-config
+  - cryptography
+  - sentence-transformers
+  - pip:
+      - pdfminer.six
+      - pyhwp
+      - ipykernel
+      - jupyterlab
