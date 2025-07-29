@@ -2,7 +2,7 @@ import os, json, faiss, argparse
 import numpy as np
 import pickle
 from sklearn.feature_extraction.text import TfidfVectorizer
-from B_embedding_model import extract_texts_from_json, load_embedding_model
+from A_embedding_model import extract_texts_from_json, load_embedding_model
 
 def build_faiss_index(json_folder_path: str, model_key: str = "kr-sbert", save_path: str = "faiss_index"):
     model = load_embedding_model(model_key)
