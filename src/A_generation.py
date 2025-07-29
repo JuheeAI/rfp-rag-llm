@@ -7,7 +7,7 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.documents import Document
 from typing import List, Union
 # import src.A_retrieval as rt
-
+ 
 def extract_context(docs: Union[List[dict], List["Document"], str]) -> str:
     if isinstance(docs, str):
         return docs

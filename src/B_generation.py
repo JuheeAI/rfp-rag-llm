@@ -102,4 +102,4 @@ if __name__ == "__main__":
     answer = chain.invoke({"context": context, "question": question})
 
     print("\n답변:")
-    print(answer)
+    print(answer) 
