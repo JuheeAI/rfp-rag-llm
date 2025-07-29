@@ -3,8 +3,8 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import csr_matrix
 from typing import List, Tuple
-from B_embedding_model import load_embedding_model, extract_texts_from_json
-from B_indexing import load_faiss_index
+from A_embedding_model import load_embedding_model, extract_texts_from_json
+from A_indexing import load_faiss_index
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import normalize
 
