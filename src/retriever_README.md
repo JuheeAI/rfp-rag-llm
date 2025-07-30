@@ -1,52 +1,109 @@
-## 1. Overview
-Retriever는 FAISS 기반 구성 파일 (B_embedding_model.py, B_indexing.py, B_retriever.py)에 대한 설명과 실행 방법을 안내합니다.
-총 100개의 문서에 대해 벡터 인덱스를 생성하고 유사한 청크를 거리 기반으로 검색해 generation 시스템의 입력으로 활용할 수 있도록 합니다.
+# Retriever 사용 가이드 (ChromaDB / FAISS)
 
-## 2. 파일 구성
-| 파일명               | 역할                                                  |
-|---------------------|-------------------------------------------------------|
-| B_embedding_model.py | 텍스트 추출 + 문장 임베딩 생성                        |
-| B_indexing.py        | JSON 문서 전체를 벡터화하여 `.index` 및 `_meta.json` 생성 |
-| B_retriever.py       | 질의 입력 시 Top-k 유사 청크 검색 결과 반환           |
+이 문서는 RAG 시스템의 Retriever 구성 요소로서 ChromaDB 또는 FAISS를 사용하여 생성(GPT 등) 모듈과 연동하는 방법을 설명합니다.
 
-## 3. 실행 방법
+---
+
+## 1. ChromaDB 기반 Retriever → Generation 연동 예시
+
+```python
+from chromadb import PersistentClient
+from chromadb.config import Settings
+from A_embedding_model import load_embedding_model
+from A_retriever_chroma import query_documents
+
+# (1) ChromaDB 클라이언트 로드
+client = PersistentClient(
+    path="/home/data/chromadb/kr-sbert",
+    settings=Settings()
+)
+
+# (2) 임베딩 모델 로드
+model = load_embedding_model("kr-sbert")
+
+# (3) 관련 청크 검색
+results = query_documents(
+    chroma_client=client,
+    collection_name="rfp_chunks",
+    query_text="스마트캠퍼스 구축 계획은 어떻게 되나요?",
+    model=model,
+    top_k=3
+)
+
+# (4) Generation 모듈 연동
+retrieved_texts = [item['text'] for item in results]
+prompt = "다음 정보를 바탕으로 질문에 답변하세요:\n" + "\n".join(retrieved_texts)
+```
+
+---
+
+## 2. FAISS 기반 Retriever → Generation 연동 예시
+
+```python
+import pickle
+import faiss
+import numpy as np
+from A_embedding_model import load_embedding_model
+from A_retriever_faiss import embed_query, search_index
+
+# (1) 임베딩 모델 로드
+model = load_embedding_model("kr-sbert")
+
+# (2) FAISS 인덱스 및 메타데이터 로드
+index = faiss.read_index("/home/data/faiss_db/faiss.index")
+with open("/home/data/faiss_db/faiss_meta.pkl", "rb") as f:
+    metadata = pickle.load(f)
+
+# (3) 질의 임베딩 후 유사 청크 검색
+query = "스마트캠퍼스 구축 계획은 어떻게 되나요?"
+query_vec = embed_query(model, query)
+top_k = 3
+results = search_index(index, query_vec, metadata, top_k)
+
+# (4) Generation 모듈 연동
+retrieved_texts = [item["text"] for item in results]
+prompt = "다음 정보를 바탕으로 질문에 답변하세요:\n" + "\n".join(retrieved_texts)
+```
+
+---
+
+## 3. 스크립트 실행 예시 (__main__ 블록이 있을 경우)
+
+### A_retriever_chroma.py 실행
 
 ```bash
-# (1) indexing - 모든 문서 임베딩 및 저장
-python B_indexing.py \
-  --json_dir /home/juhee/experiment/sample_jsons \
+python A_retriever_chroma.py \
+  --query "스마트캠퍼스 구축 계획은 어떻게 되나요?" \
   --model_key kr-sbert \
-  --save_path /home/juhee/experiment/outputs/smartcampus_kr-sbert_20250729
+  --persist_path /home/data/chromadb/kr-sbert \
+  --collection_name rfp_chunks \
+  --top_k 3
 ```
-### → 다음 파일들이 생성됩니다 (파일 이름과 폴더 구조는 예시입니다.)
-### - 벡터 인덱스 파일 예시: smartcampus_kr-sbert_20250729.index
-### - 메타 정보 JSON: smartcampus_kr-sbert_20250729_meta.json
+
+### A_retriever_faiss.py 실행
 
 ```bash
-# (2) retriever - 질의어에 대해 Top-k 유사 청크 반환 (hybrid 방식)
-python B_retriever.py \
-  --index_path /home/juhee/experiment/outputs/smartcampus_kr-sbert_20250729.index \
-  --meta_path /home/juhee/experiment/outputs/smartcampus_kr-sbert_20250729_meta.json \
-  --tfidf_path /home/juhee/experiment/outputs/smartcampus_kr-sbert_20250729_tfidf.pkl \
-  --query "이미지가 포함된 문서가 있나요?" \
+python A_retriever_faiss.py \
+  --query "스마트캠퍼스 구축 계획은 어떻게 되나요?" \
   --model_key kr-sbert \
-  --mode hybrid
+  --index_path /home/data/faiss_db/faiss.index \
+  --meta_path /home/data/faiss_db/faiss_meta.pkl \
+  --top_k 3
 ```
 
-## 4. 모델 키 목록
-| 모델 키     | 모델 설명                                    |
-|-------------|-----------------------------------------------|
-| kr-sbert    | snunlp/KR-SBERT-V40K-klueNLI-augSTS           |
-| ko-sbert    | jhgan/ko-sbert-sts                            |
-| kosimcse    | BM-K/KoSimCSE-roberta-multitask              |
+---
 
-## 5. 출력 예시
+## 4. 최적화 및 구현 주요 사항
 
-[사용자 질의] 위약금 조항이 있나요?
+Retriever 구성은 실제 서비스 수준의 성능과 유지보수 고려
+고급 설정과 개선 사항을 반영
 
-[검색 결과]
+### ChromaDB 최적화
 
-[Index: 6, 거리: 476.9672]
-[파일명: 스마트캠퍼스제안서.pdf]
-[사업명: 스마트캠퍼스 구축]
-본문: [페이지 1] 납기 미준수 시 위약금 조항이 포함되어 있습니다.
+### FAISS 최적화
+- **IVF+PQ 인덱스 구조**를 사용하여 대규모 문서셋에 대비한 검색 속도 향상 구조 설계
+- 단일 문서만 있을 경우 자동으로 **IndexFlatL2**로 fallback 처리
+- 검색 유사도 score와 메타정보를 함께 반환하여 이후 filtering 또는 scoring 로직 유연하게 확장 가능
+- FAISS 인덱스는 `faiss.index`, 메타데이터는 `faiss_meta.pkl`로 분리 저장 → 인덱스 갱신/재훈련이 용이함
+
+---
