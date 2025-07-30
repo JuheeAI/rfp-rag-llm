@@ -158,7 +158,7 @@ def build_chain(retriever):
 # 예시 실행
 if __name__ == "__main__":
 
-    retriever = get_retriever("./data/", reuse_index=True, limit_files=None) # 리트리버 로드
+    retriever = get_retriever("/home/data/data/", reuse_index=True, limit_files=None) # 리트리버 로드
     chain = build_chain(retriever) # LLM QA 체인 생성 
 
     #쿼리 입력 파트
@@ -168,4 +168,4 @@ if __name__ == "__main__":
             break
         result = chain.invoke(query)
         print("\n답변:")
-        print(result)
+        print(result)  

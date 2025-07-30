@@ -1,13 +1,14 @@
 # 수정 ver.
 # import json
+import os
 import getpass
-import retrieval as rt  
+import B_retriever as rt
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from typing import List, Union
-from langchain_core.documents import Document  # optional
+from langchain_core.documents import Document
 
 def extract_context(docs: Union[List[dict], List["Document"], str]) -> str:
     if isinstance(docs, str):
@@ -67,7 +68,7 @@ SYSTEM_PROMPT = """
 [답변]
 """
 
-def create_generation_chain(api_key: str, model_name: str):
+def create_generation_chain(retriever, api_key: str, model_name: str):
     llm = ChatOpenAI(
         model_name=model_name,
         temperature=0.3,
@@ -77,7 +78,7 @@ def create_generation_chain(api_key: str, model_name: str):
     prompt = ChatPromptTemplate.from_template(SYSTEM_PROMPT)
     
     chain = (
-        {"context": RunnablePassthrough(), "question": RunnablePassthrough()}
+        {"context": retriever | extract_context, "question": RunnablePassthrough()}
         | prompt
         | llm
         | StrOutputParser()
@@ -87,19 +88,29 @@ def create_generation_chain(api_key: str, model_name: str):
 
 if __name__ == "__main__":
 
-    api_key = getpass.getpass("OpenAI API Key 입력: ")
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("API_KEY를 확인해 주세요")
 
     model_choice = input("모델 선택 (nano/mini): ").strip()
     selected_model = "gpt-4.1-nano" if model_choice == "nano" else "gpt-4.1-mini"
 
-    question = input("질문: ")
+    # 1. B_retriever.py의 함수를 호출하여 retriever 객체 생성
+    retriever = rt.get_retriever(documents_path="/home/data/data/", reuse_index=True)
+    
+    # 2. retriever 객체를 사용하여 전체 RAG 체인 생성
+    rag_chain = create_generation_chain(retriever=retriever, api_key=api_key, model_name=selected_model)
 
-    retrieved_docs = rt.retriever.get_relevant_documents(question)
-    context = extract_context(retrieved_docs)
-
-    chain = create_generation_chain(api_key=api_key, model_name=selected_model)
-
-    answer = chain.invoke({"context": context, "question": question})
-
-    print("\n답변:")
-    print(answer) 
+    # 3. 사용자 질문 루프 시작
+    while True:
+        question = input("\n질문을 입력하세요 (exit 입력 시 종료): ")
+        if question.lower() == "exit":
+            break
+        if not question.strip():
+            continue
+            
+        # 4. 체인에 질문만 넣어서 실행 (리트리버와 LLM이 알아서 작동)
+        answer = rag_chain.invoke(question)
+        
+        print("\n답변:")
+        print(answer)  
