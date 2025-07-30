@@ -1,6 +1,6 @@
 import os, json, argparse, chromadb
 from chromadb import Client
-from A_embedding_model import extract_texts_from_json, load_embedding_model
+from A_embedding_model import extract_texts_from_json, load_embedding_model, embed_texts
 from chromadb.config import Settings, DEFAULT_TENANT, DEFAULT_DATABASE
 
 # ChromaDB 클라이언트 설정
@@ -29,7 +29,7 @@ def index_documents(chroma_client, collection_name, file_paths, model):
         if not chunks:
             continue
 
-        embeddings = model.encode(chunks)
+        embeddings = embed_texts(model, chunks, for_faiss=False)
 
         doc_ids = [f"{os.path.basename(path)}-chunk{i}" for i in range(len(chunks))]
         metadatas = [{

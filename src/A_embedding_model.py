@@ -1,3 +1,4 @@
+import numpy as np
 import argparse
 from sentence_transformers import SentenceTransformer
 from typing import List, Union
@@ -77,6 +78,11 @@ def extract_texts_from_json(json_data: dict) -> List[str]:
 
     return chunks
 
+# 텍스트 임베딩 함수
+def embed_texts(model, texts: List[str], for_faiss: bool = False) -> np.ndarray:
+    embeddings = model.encode(texts, convert_to_numpy=True)
+    return embeddings.astype(np.float32) if for_faiss else embeddings
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--json_path", type=str, required=True, help="JSON 파일 경로")
@@ -89,5 +95,5 @@ if __name__ == "__main__":
     texts = extract_texts_from_json(json_data)
 
     model = load_embedding_model(args.model_key)
-    embeddings = model.encode(texts)
+    embeddings = embed_texts(model, texts, for_faiss=True)
     pass
