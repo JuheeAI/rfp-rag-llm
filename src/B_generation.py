@@ -113,4 +113,4 @@ if __name__ == "__main__":
         answer = rag_chain.invoke(question)
         
         print("\n답변:")
-        print(answer) 
+        print(answer)  

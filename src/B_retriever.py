@@ -168,4 +168,4 @@ if __name__ == "__main__":
             break
         result = chain.invoke(query)
         print("\n답변:")
-        print(result)
+        print(result)  
