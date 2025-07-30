@@ -2,7 +2,7 @@
 # import json
 import os
 import getpass
-import B_retriever as rt
+from . import B_retriever as rt
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
