@@ -1,91 +1,122 @@
-import pickle, argparse, faiss, os, json
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from scipy.sparse import csr_matrix
-from typing import List, Tuple
-from B_embedding_model import load_embedding_model, extract_texts_from_json
-from B_indexing import load_faiss_index
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.preprocessing import normalize
+import os
+import re
+import time
+from pathlib import Path
+from dotenv import load_dotenv
+from langchain_core.documents import Document
+from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_community.document_loaders import PyPDFLoader
+from llama_index.readers.file import HWPReader
+from tqdm import tqdm
 
-# 쿼리 임베딩
-def get_query_embedding(query: str, model) -> np.ndarray:
-    return model.encode([query]).reshape(1, -1)
+# 🔑 환경 변수 로드
+load_dotenv()
 
-# 유사한 chunk 검색
-def retrieve_top_k_chunks(query: str, model, index: faiss.IndexFlatL2, corpus: List[str], k: int = 5) -> List[Tuple[int, float, str]]:
-    query_vec = get_query_embedding(query, model)
-    D, I = index.search(query_vec, k) 
-    results = []
-    for idx, dist in zip(I[0], D[0]):
-        results.append((idx, dist, corpus[idx]))
-    return results
+# ✅ 문장 분리 함수
 
-# TF-IDF 기반 검색
-def retrieve_tfidf_top_k(query: str, vectorizer: TfidfVectorizer, tfidf_matrix: csr_matrix, corpus: List[str], k: int = 5) -> List[Tuple[int, float, str]]:
-    query_vec = vectorizer.transform([query])
-    scores = (query_vec @ tfidf_matrix.T).toarray().squeeze()
-    topk_idx = scores.argsort()[::-1][:k]
-    return [(i, scores[i], corpus[i]) for i in topk_idx]
+def split_sentences(text):
+    return re.split(r'(?<=[.!?])\s+', text.strip())
 
-# 하이브리드 검색
-def retrieve_hybrid_top_k(query: str, model, vectorizer: TfidfVectorizer, tfidf_matrix: csr_matrix, corpus: List[str], k: int = 5) -> List[Tuple[int, float, str]]:
-    print("[DEBUG] corpus 샘플:")
-    for i, text in enumerate(corpus[:5]):
-        print(f"  - 문서 {i}: {text}")
+# ✅ 문서 로딩 함수 (PDF, HWP 지원)
+def load_documents(folder_path, limit_files=None):
+    all_docs = []
+    hwp_reader = HWPReader()
+    files = sorted(os.listdir(folder_path))
+    if limit_files:
+        files = files[:limit_files]
 
-    candidates = retrieve_tfidf_top_k(query, vectorizer, tfidf_matrix, corpus, k=20)
-    print("[DEBUG] TF-IDF 후보군:")
-    for _, score, text in candidates:
-        print(f"  - 점수: {score:.8f}, 문장: {text['text'][:50]}")
-    query_vec = normalize(get_query_embedding(query, model))  # shape (1, dim)
-    text_vecs = normalize(model.encode([c[2]["text"] for c in candidates]))  # shape (k, dim)
-    print("[DEBUG] query_vec[:5]:", query_vec[0][:5])
-    print("[DEBUG] text_vecs[0][:5]:", text_vecs[0][:5])
-    sim_scores = cosine_similarity(query_vec, text_vecs)[0]  # shape (k,)
-    reranked = sorted(zip([c[0] for c in candidates], sim_scores, [c[2] for c in candidates]), key=lambda x: x[1], reverse=True)
+    for filename in tqdm(files, desc="📄 Loading documents"):
+        file_path = os.path.join(folder_path, filename)
+        try:
+            if filename.endswith(".pdf"):
+                loader = PyPDFLoader(file_path)
+                docs = loader.load()
+            elif filename.endswith(".hwp"):
+                docs = hwp_reader.load_data(Path(file_path))
+            else:
+                continue
+            for doc in docs:
+                doc.metadata["source"] = filename
+            all_docs.extend(docs)
+        except Exception as e:
+            print(f"[!] {filename} 불러오기 실패: {e}")
+    return all_docs
 
-    print("[DEBUG] Vectorizer 단어 수:", len(vectorizer.vocabulary_))
-    sample_keywords = ["지체상금", "이미지", "위약금", "책임", "포함"]
-    for kw in sample_keywords:
-        in_vocab = kw in vectorizer.vocabulary_
-        print(f"[DEBUG] '{kw}' in vocab? {in_vocab} -> {vectorizer.vocabulary_.get(kw, '없음')}")
+# ✅ 청킹 함수
 
-    return reranked[:k]
+def semantic_chunk_documents(documents, max_chunk_len=300):
+    chunked_docs = []
+    for doc in tqdm(documents, desc="🔪 Chunking documents"):
+        text = doc.text if hasattr(doc, "text") else doc.page_content
+        metadata = doc.metadata
+        sentences = split_sentences(text)
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--index_path", type=str, required=True, help="FAISS index 파일 경로 (.index)")
-    parser.add_argument("--meta_path", type=str, required=True, help="메타데이터 JSON 경로")
-    parser.add_argument("--query", type=str, required=True, help="검색할 사용자 쿼리")
-    parser.add_argument("--model_key", type=str, default="kr-sbert", help="임베딩 모델 키 (기본: kr-sbert)")
-    parser.add_argument("--tfidf_path", type=str, help="TF-IDF 인덱스 경로 (.pkl)")
-    parser.add_argument("--mode", type=str, default="dense", choices=["dense", "sparse", "hybrid"], help="retrieval 방식 선택")
+        buffer = ""
+        for sentence in sentences:
+            if not sentence.strip():
+                continue
+            if re.match(r"^\d{1,2}\.\s", sentence) or sentence.startswith("■") or re.match(r"^[가-하]\)", sentence):
+                if buffer.strip():
+                    chunked_docs.append(Document(page_content=buffer.strip(), metadata=metadata))
+                buffer = sentence + " "
+                continue
+            if len(buffer) + len(sentence) <= max_chunk_len:
+                buffer += sentence + " "
+            else:
+                chunked_docs.append(Document(page_content=buffer.strip(), metadata=metadata))
+                buffer = sentence + " "
+        if buffer.strip():
+            chunked_docs.append(Document(page_content=buffer.strip(), metadata=metadata))
+    return chunked_docs
 
-    args = parser.parse_args()
+# ✅ FAISS 인덱스 빌드 (배치 + 진행바 + 시간측정)
+def build_faiss_index(docs, embedding, batch_size=50):
+    from langchain_community.vectorstores.faiss import FAISS
 
-    model = load_embedding_model(args.model_key)
-    index = load_faiss_index(args.index_path)
+    texts = [doc.page_content for doc in docs]
+    metadatas = [doc.metadata for doc in docs]
 
-    with open(args.meta_path, "r", encoding="utf-8") as f:
-        corpus = json.load(f)
+    embeddings = []
+    print("\n🔁 Embedding in batches...")
+    for i in tqdm(range(0, len(texts), batch_size)):
+        batch = texts[i:i+batch_size]
+        emb = embedding.embed_documents(batch)
+        embeddings.extend(emb)
 
-    if args.mode in ["sparse", "hybrid"]:
-        with open(args.tfidf_path, "rb") as f:
-            vectorizer, tfidf_matrix = pickle.load(f)
+    print(f"✅ Total chunks: {len(docs)} | Total embeddings: {len(embeddings)}")
 
-    print(f"\n[사용자 질의] {args.query}")
-    if args.mode == "dense":
-        top_k_chunks = retrieve_top_k_chunks(args.query, model, index, corpus, k=5)
-    elif args.mode == "sparse":
-        top_k_chunks = retrieve_tfidf_top_k(args.query, vectorizer, tfidf_matrix, corpus, k=5)
-    elif args.mode == "hybrid":
-        top_k_chunks = retrieve_hybrid_top_k(args.query, model, vectorizer, tfidf_matrix, corpus, k=5)
+    vector_db, _ = FAISS.from_embeddings(embeddings=embeddings, documents=docs)
+    return vector_db
 
-    print("\n[검색 결과]")
-    for idx, score, _ in top_k_chunks:
-        item = corpus[idx]
-        print(f"\n[Index: {idx}, 점수: {score:.8f}]")
-        print(f"[파일명: {item['파일명']}]")
-        print(f"[사업명: {item['사업명']}]")
-        print(f"본문: {item['text']}")
+
+
+# ✅ 최종 리트리버 생성
+
+def get_retriever(documents_path, index_path="faiss_index/", reuse_index=True, k=5, limit_files=None):
+    start_time = time.time()
+    documents = load_documents(documents_path, limit_files=limit_files)
+    chunks = semantic_chunk_documents(documents, max_chunk_len=300)
+
+    embedding = OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        openai_api_key=os.getenv("OPENAI_API_KEY")
+    )
+
+    if reuse_index and os.path.exists(index_path):
+        print("📁 Loading existing FAISS index...")
+        vector_db = FAISS.load_local(index_path, embedding)
+    else:
+        vector_db = build_faiss_index(chunks, embedding)
+        vector_db.save_local(index_path)
+
+    retriever = vector_db.as_retriever(
+        search_type="mmr",
+        search_kwargs={"k": k, "fetch_k": k * 2}
+    )
+
+    print(f"⏱️ Retriever ready in {time.time() - start_time:.2f} seconds")
+    return retriever
+
+# ✅ 실행 (파일 수 제한 가능)
+retriever = get_retriever("./data/", limit_files=None)  # limit_files=10 처럼 테스트 가능
