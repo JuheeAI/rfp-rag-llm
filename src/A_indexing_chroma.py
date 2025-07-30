@@ -20,21 +20,16 @@ def load_all_json_files(json_dir):
 # 문서 ID, 메타데이터 생성 및 임베딩
 def index_documents(chroma_client, collection_name, file_paths, model):
     collection = chroma_client.get_or_create_collection(collection_name)
-    print(f"[DEBUG] 컬렉션 초기 문서 수: {collection.count()}")
 
     for path in file_paths:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        print(f"[DEBUG] 파일: {os.path.basename(path)}")
-
         chunks = extract_texts_from_json(data)
-        print(f"[DEBUG] 추출 청크 개수: {len(chunks)}")
         if not chunks:
             continue
 
         embeddings = model.encode(chunks)
-        print(f"[DEBUG] 생성된 임베딩 수: {len(embeddings)}")
 
         doc_ids = [f"{os.path.basename(path)}-chunk{i}" for i in range(len(chunks))]
         metadatas = [{
@@ -44,19 +39,12 @@ def index_documents(chroma_client, collection_name, file_paths, model):
             "사업명": data.get("사업명", "N/A"),
         } for i in range(len(chunks))]
 
-        print(f"[DEBUG] collection.add 호출 - 문서 수: {len(chunks)}, ID 수: {len(doc_ids)}, 메타데이터 수: {len(metadatas)}, 임베딩 수: {len(embeddings)}")
         collection.add(
             documents=chunks,
             ids=doc_ids,
             metadatas=metadatas,
             embeddings=embeddings
         )
-        print(f"[DEBUG] {os.path.basename(path)} - {len(chunks)}개 문서 추가 완료, 현재 컬렉션 문서 수: {collection.count()}")
-
-    print(f"[DEBUG] 컬렉션 문서 수 (최종): {collection.count()}")
-    results = collection.get(where={"파일명": "example_smartcampus.json"})
-    print(f"[DEBUG] 해당 파일 문서 수: {len(results['ids'])}")
-    print("[DEBUG] 문서 ID 목록:", results["ids"])
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -70,5 +58,3 @@ if __name__ == "__main__":
     model = load_embedding_model(args.model_key)
     file_paths = load_all_json_files(args.json_dir)
     index_documents(chroma_client, args.collection_name, file_paths, model)
-
-    print(f"\n{len(file_paths)}개 파일 인덱싱 완료.")

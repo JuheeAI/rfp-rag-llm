@@ -27,7 +27,6 @@ def extract_texts_from_json(json_data: dict) -> List[str]:
     raw_texts = []
 
     for page in pages:
-        # 순서: text → ocr_text → tables → image 태그
         if "text" in page and page["text"].strip():
             raw_texts.append(page["text"].strip())
         if "ocr_text" in page and page["ocr_text"].strip():
@@ -44,18 +43,12 @@ def extract_texts_from_json(json_data: dict) -> List[str]:
 
     # 전체 문단 이어 붙이기
     merged_text = "\n".join(raw_texts)
-    print(f"[DEBUG] 병합된 전체 텍스트 길이: {len(merged_text)}")
 
     # 토큰 기반 청크 생성
     tokenizer = AutoTokenizer.from_pretrained("klue/roberta-base")
     tokens = tokenizer(merged_text, return_offsets_mapping=True, return_attention_mask=False, return_token_type_ids=False)
     offset_mapping = tokens["offset_mapping"]
     input_ids = tokens["input_ids"]
-    print(f"[DEBUG] 생성된 토큰 수: {len(input_ids)}")
-    print(f"[DEBUG] offset_mapping 길이: {len(offset_mapping)}")
-    print(f"[DEBUG] input_ids[:10]: {input_ids[:10]}")
-    print(f"[DEBUG] offset_mapping[:10]: {offset_mapping[:10]}")
-    print(f"[DEBUG] 첫 100자: {merged_text[:100]}")
 
     max_tokens = 512
     stride = 64
@@ -63,14 +56,12 @@ def extract_texts_from_json(json_data: dict) -> List[str]:
     # 유효한 토큰 위치만 필터링
     valid_offsets = [(i, off) for i, off in enumerate(offset_mapping) if off != (0, 0)]
     if not valid_offsets:
-        print("[DEBUG] 유효한 offset_mapping이 없습니다.")
         return []
 
     max_offset_idx = valid_offsets[-1][0]
 
     if len(input_ids) <= max_tokens:
         chunks = [merged_text.strip()]
-        print(f"[DEBUG] 단일 청크 생성: 길이={len(chunks[0])}")
         return chunks
     else:
         chunks = []
@@ -82,7 +73,6 @@ def extract_texts_from_json(json_data: dict) -> List[str]:
             # 첫 chunk가 이미 전체 텍스트로 처리된 경우 스킵 (optional safety)
             if len(chunks) == 0 and start_idx == 0 and len(merged_text.strip()) <= max_tokens:
                 continue  # 첫 chunk는 이미 처리된 경우이므로 건너뜀
-            print(f"[DEBUG] 청크 {len(chunks)+1}: start_char={start_char}, end_char={end_char}, 길이={len(chunk_text)}")
             if chunk_text:
                 chunks.append(chunk_text)
 
@@ -98,10 +88,7 @@ if __name__ == "__main__":
         json_data = json.load(f)
 
     texts = extract_texts_from_json(json_data)
-    print(f"\n총 추출된 텍스트 개수: {len(texts)}")
-    for i, t in enumerate(texts, 1):
-        print(f"[{i}] {t}")
 
     model = load_embedding_model(args.model_key)
     embeddings = model.encode(texts)
-    print(f"\n임베딩 벡터 shape: {embeddings.shape if isinstance(embeddings, torch.Tensor) else len(embeddings)}")
+    pass

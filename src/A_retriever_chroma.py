@@ -13,20 +13,13 @@ def get_chroma_client(persist_path):
 
 def query_documents(chroma_client, collection_name, query, model, top_k=5):
     collection = chroma_client.get_collection(name=collection_name)
-    print(f"[DEBUG] collection name: {collection_name}")
-    print(f"[DEBUG] query: {query}")
-    print(f"[DEBUG] top_k: {top_k}")
-    print(f"[DEBUG] collection count: {collection.count()}")
     query_embedding = model.encode([query])[0]
-    print(f"[DEBUG] query embedding[:5]: {query_embedding[:5]}")
-    print("[DEBUG] 현재 컬렉션 ID 목록:", collection.get()["ids"])
     results = collection.query(
         query_embeddings=[query_embedding],
         n_results=top_k,
         include=["documents", "metadatas"]
     )
     if not results["documents"] or not results["documents"][0]:
-        print("[INFO] 검색된 결과가 없습니다.")
         return
     for i, (doc, meta) in enumerate(zip(results["documents"][0], results["metadatas"][0])):
         print(f"\n[결과 {i+1}]")
@@ -45,7 +38,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     model = load_embedding_model(args.model_key)
     client = get_chroma_client(args.persist_path)
-    print("[DEBUG] 현재 존재하는 컬렉션 목록:")
-    for col in client.list_collections():
-        print(f"[DEBUG] 컬렉션 이름: {col.name}, ID: {col.id}")
     query_documents(client, args.collection_name, args.query, model, top_k=args.top_k)
