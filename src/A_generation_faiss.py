@@ -102,7 +102,7 @@ def create_generation_chain():
         | StrOutputParser()
     )
 
-    return chain
+    return chain, tokenizer
 
 if __name__ == "__main__":
     from A_embedding_model import load_embedding_model
@@ -121,14 +121,12 @@ if __name__ == "__main__":
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
     # Build generation chain
-    chain = create_generation_chain()
+    chain, tokenizer = create_generation_chain()
 
     # Prompt loop
     question = input("질문: ")
     docs = retriever.invoke(question)
-    context = extract_context(docs)
-
+    context = extract_context(docs[:2])  
     answer = chain.invoke({"context": context, "question": question})
     print("\n답변:")
     print(answer)
-    
