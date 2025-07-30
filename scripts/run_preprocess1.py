@@ -302,7 +302,8 @@ def process_all(csv_path, input_dir, output_dir, log_dir):
             row = handle_missing_values(row, idx, log_file)
             log_message(f"[INFO] 결측치 처리 완료", log_file)
 
-            file_name = row['파일명']
+            #file_name = row['파일명'] -- csv는 파일명이 NFC로 인코딩, 파일 시스템은 NFD로 인코딩 되어 있어서 파일을 못읽어와 변경해줌 
+            file_name = unicodedata.normalize('NFD', row['파일명'])
             file_format = row['파일형식'].lower()
             input_path = os.path.join(input_dir, file_name)
 
