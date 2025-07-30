@@ -70,9 +70,8 @@ def extract_texts_from_json(json_data: dict) -> List[str]:
             start_char = offset_mapping[start_idx][0]
             end_char = offset_mapping[min(end_idx, len(offset_mapping) - 1)][1]
             chunk_text = merged_text[start_char:end_char].strip()
-            # 첫 chunk가 이미 전체 텍스트로 처리된 경우 스킵 (optional safety)
             if len(chunks) == 0 and start_idx == 0 and len(merged_text.strip()) <= max_tokens:
-                continue  # 첫 chunk는 이미 처리된 경우이므로 건너뜀
+                continue  
             if chunk_text:
                 chunks.append(chunk_text)
 
