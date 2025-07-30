@@ -1,9 +1,9 @@
 import numpy as np
-import argparse
-from sentence_transformers import SentenceTransformer
+import torch, json, kss, argparse
 from typing import List, Union
-import torch, json, kss
 from transformers import AutoTokenizer
+from langchain_core.embeddings import Embeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 
 # 모델 목록
 SUPPORTED_MODELS = {
@@ -13,11 +13,11 @@ SUPPORTED_MODELS = {
 }
 
 # 임베딩 벡터 인코딩 함수
-def load_embedding_model(model_key: str) -> SentenceTransformer:
+def load_embedding_model(model_key: str) -> Embeddings:
     if model_key not in SUPPORTED_MODELS:
         raise ValueError(f"지원하지 않는 모델입니다: {model_key}")
     model_name = SUPPORTED_MODELS[model_key]
-    return SentenceTransformer(model_name)
+    return HuggingFaceEmbeddings(model_name=model_name)
 
 # 텍스트 인코딩 함수
 def extract_texts_from_json(json_data: dict) -> List[str]:
@@ -78,10 +78,6 @@ def extract_texts_from_json(json_data: dict) -> List[str]:
 
     return chunks
 
-# 텍스트 임베딩 함수
-def embed_texts(model, texts: List[str], for_faiss: bool = False) -> np.ndarray:
-    embeddings = model.encode(texts, convert_to_numpy=True)
-    return embeddings.astype(np.float32) if for_faiss else embeddings
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -95,5 +91,6 @@ if __name__ == "__main__":
     texts = extract_texts_from_json(json_data)
 
     model = load_embedding_model(args.model_key)
-    embeddings = embed_texts(model, texts, for_faiss=True)
+    embeddings = model.embed_documents(texts)
+    print(np.array(embeddings).shape)
     pass
