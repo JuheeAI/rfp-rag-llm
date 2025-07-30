@@ -103,7 +103,7 @@ def build_faiss_index(docs, embedding, batch_size=50):
 
 
 # 리트리버 생성
-def get_retriever(documents_path, index_path="faiss_index/", reuse_index=True, k=5, limit_files=None):
+def get_retriever(documents_path, index_path="/home/data/B_faiss_db/", reuse_index=True, k=5, limit_files=None):
     start_time = time.time()
     documents = load_documents(documents_path, limit_files=limit_files)
     chunks = semantic_chunk_documents(documents, max_chunk_len=300)
