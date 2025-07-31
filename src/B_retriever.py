@@ -1,50 +1,63 @@
 import os
 import re
 import time
-import openai
+import json
 from pathlib import Path
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-
+import openai
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnablePassthrough, RunnableMap
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_community.embeddings import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
-from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.chat_models import ChatOpenAI
-from llama_index.readers.file import HWPReader
 
 # 환경 변수 로드
-load_dotenv()
+def find_and_load_dotenv(start_path: Path = Path(__file__).resolve(), filename=".env"):
+    current = start_path.parent
+    while current != current.parent:
+        env_path = current / filename
+        if env_path.exists():
+            load_dotenv(dotenv_path=env_path)
+            print(f".env loaded from: {env_path}")
+            return True
+        current = current.parent
+    print(".env 파일을 찾지 못했습니다.")
+    return False
+
+find_and_load_dotenv()
 
 # 문장 분리 함수
 def split_sentences(text):
     return re.split(r'(?<=[.!?])\s+', text.strip())
 
 # 문서 로딩 함수
-def load_documents(folder_path, limit_files=None):
+def load_documents_json(folder_path, limit_files=None):
     all_docs = []
-    hwp_reader = HWPReader()
-    files = sorted(os.listdir(folder_path))
+    files = sorted([f for f in os.listdir(folder_path) if f.endswith(".json")])
     if limit_files:
         files = files[:limit_files]
 
-    for filename in tqdm(files, desc="📄 Loading documents"):
-        file_path = os.path.join(folder_path, filename)
+    for filename in tqdm(files, desc="Loading JSON documents"):
         try:
-            if filename.endswith(".pdf"):
-                loader = PyPDFLoader(file_path)
-                docs = loader.load()
-            elif filename.endswith(".hwp"):
-                docs = hwp_reader.load_data(Path(file_path))
-            else:
-                continue
-            for doc in docs:
-                doc.metadata["source"] = filename
-            all_docs.extend(docs)
+            file_path = os.path.join(folder_path, filename)
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            사업명 = data.get("사업명", "")
+            공고번호 = data.get("공고번호", "")
+            페이지들 = data.get("페이지별_데이터", [])
+
+            for page in 페이지들:
+                page_text = page.get("text", "")
+                if page_text.strip():
+                    all_docs.append(Document(
+                        page_content=page_text.strip(),
+                        metadata={"사업명": 사업명, "공고번호": 공고번호, "source": filename}
+                    ))
         except Exception as e:
             print(f"[!] {filename} 불러오기 실패: {e}")
     return all_docs
@@ -52,8 +65,8 @@ def load_documents(folder_path, limit_files=None):
 # 청킹 함수
 def semantic_chunk_documents(documents, max_chunk_len=300):
     chunked_docs = []
-    for doc in tqdm(documents, desc="🔪 Chunking documents"):
-        text = doc.text if hasattr(doc, "text") else doc.page_content
+    for doc in tqdm(documents, desc="Chunking documents"):
+        text = doc.page_content
         metadata = doc.metadata
         sentences = split_sentences(text)
 
@@ -75,10 +88,11 @@ def semantic_chunk_documents(documents, max_chunk_len=300):
             chunked_docs.append(Document(page_content=buffer.strip(), metadata=metadata))
     return chunked_docs
 
+def faiss_index_exists(index_path):
+    return os.path.exists(os.path.join(index_path, "index.faiss")) and os.path.exists(os.path.join(index_path, "index.pkl"))
+
 # FAISS 인덱스 빌드
 def build_faiss_index(docs, embedding, batch_size=50):
-    from langchain_community.vectorstores.faiss import FAISS
-
     texts = [doc.page_content for doc in docs]
     metadatas = [doc.metadata for doc in docs]
 
@@ -91,21 +105,15 @@ def build_faiss_index(docs, embedding, batch_size=50):
 
     print(f"Total chunks: {len(texts)} | Total embeddings: {len(embeddings)}")
 
-    # zip으로 (text, embedding) 튜플 생성
     text_embedding_pairs = list(zip(texts, embeddings))
-
-    # FAISS 인덱스 생성
-    return FAISS.from_embeddings(
-        text_embeddings=text_embedding_pairs,
-        embedding=embedding,
-        metadatas=metadatas
-    )
+    return FAISS.from_embeddings(text_embeddings=text_embedding_pairs, embedding=embedding, metadatas=metadatas)
 
 
 # 리트리버 생성
 def get_retriever(documents_path, index_path="faiss_index/", reuse_index=True, k=5, limit_files=None):
     start_time = time.time()
-    documents = load_documents(documents_path, limit_files=limit_files)
+
+    documents = load_documents_json(documents_path, limit_files=limit_files)
     chunks = semantic_chunk_documents(documents, max_chunk_len=300)
 
     embedding = OpenAIEmbeddings(
@@ -113,7 +121,7 @@ def get_retriever(documents_path, index_path="faiss_index/", reuse_index=True, k
         openai_api_key=os.getenv("OPENAI_API_KEY")
     )
 
-    if reuse_index and os.path.exists(index_path):
+    if reuse_index and faiss_index_exists(index_path):
         print("Loading existing FAISS index...")
         vector_db = FAISS.load_local(index_path, embedding, allow_dangerous_deserialization=True)
     else:
@@ -145,8 +153,10 @@ def build_chain(retriever):
 답변:"""
     )
 
+    retriever_chain = RunnableLambda(lambda q: retriever.get_relevant_documents(q))
+
     chain = (
-        {"context": retriever, "question": RunnablePassthrough()}
+        {"context": retriever_chain, "question": RunnablePassthrough()}
         | prompt
         | llm
         | StrOutputParser()
@@ -154,16 +164,13 @@ def build_chain(retriever):
     return chain
 
 
-
 # 예시 실행
 if __name__ == "__main__":
+    retriever = get_retriever(r"/home/data/preprocess/json", reuse_index=True, limit_files=None)
+    chain = build_chain(retriever)
 
-    retriever = get_retriever("./data/", reuse_index=True, limit_files=None) # 리트리버 로드
-    chain = build_chain(retriever) # LLM QA 체인 생성 
-
-    #쿼리 입력 파트
     while True:
-        query = input("\n 질문을 입력하세요 (exit 입력 시 종료): ") 
+        query = input("\n질문을 입력하세요 (exit 입력 시 종료): ")
         if query.lower() == "exit":
             break
         result = chain.invoke(query)
