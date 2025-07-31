@@ -8,6 +8,9 @@ from langchain_core.runnables import RunnablePassthrough
 from typing import List, Union
 from langchain_core.documents import Document
 
+# 전역 히스토리 초기화
+chat_history = []
+
 def extract_context(docs: Union[List[dict], List["Document"], str]) -> str:
     if isinstance(docs, str):
         return docs
@@ -61,11 +64,15 @@ SYSTEM_PROMPT = """
 [문맥]
 {context}
 
-[질문]
+[대화 히스토리 및 질]
 {question}
 
 [답변]
 """
+
+def build_full_question(chat_history: List[str], current_q: str) -> str:
+    dialogue = "\n".join(chat_history)
+    return f"{dialogue}\nuser: {current_q}"
 
 def create_generation_chain(retriever, api_key: str, model_name: str):
     llm = ChatOpenAI(
@@ -109,7 +116,11 @@ if __name__ == "__main__":
             continue
             
         # 4. 체인에 질문만 넣어서 실행 (리트리버와 LLM이 알아서 작동)
+        full_question = build_full_question(chat_history, question)
         answer = rag_chain.invoke(question)
         
         print("\n답변:")
         print(answer)  
+
+        chat_history.append(f"user: {question}")
+        chat_history.append(f"bot: {answer}")
