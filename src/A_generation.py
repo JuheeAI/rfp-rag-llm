@@ -112,7 +112,7 @@ def create_generation_chain():
 
 if __name__ == "__main__":
 
-		question = input("질문: ")
+    question = input("질문: ")
 		
     # 문서 리트리버에서 검색
     retrieved_docs = rt.retriever.get_relevant_documents(question)

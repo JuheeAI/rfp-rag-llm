@@ -18,7 +18,19 @@ from langchain_community.chat_models import ChatOpenAI
 from llama_index.readers.file import HWPReader
 
 # 환경 변수 로드
-load_dotenv()
+def find_and_load_dotenv(start_path: Path = Path(__file__).resolve(), filename=".env"):
+    current = start_path.parent
+    while current != current.parent:
+        env_path = current / filename
+        if env_path.exists():
+            load_dotenv(dotenv_path=env_path)
+            print(f".env loaded from: {env_path}")
+            return True
+        current = current.parent
+    print(".env 파일을 찾지 못했습니다.")
+    return False
+
+find_and_load_dotenv()
 
 # 문장 분리 함수
 def split_sentences(text):
