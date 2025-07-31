@@ -64,7 +64,7 @@ SYSTEM_PROMPT = """
 [문맥]
 {context}
 
-[대화 히스토리 및 질]
+[대화 히스토리 및 질문]
 {question}
 
 [답변]
@@ -117,7 +117,7 @@ if __name__ == "__main__":
             
         # 4. 체인에 질문만 넣어서 실행 (리트리버와 LLM이 알아서 작동)
         full_question = build_full_question(chat_history, question)
-        answer = rag_chain.invoke(question)
+        answer = rag_chain.invoke(full_question)
         
         print("\n답변:")
         print(answer)  
