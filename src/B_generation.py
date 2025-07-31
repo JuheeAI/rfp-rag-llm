@@ -1,7 +1,4 @@
-# 수정 ver.
-# import json
-import os
-import getpass
+import os, getpass
 from . import B_retriever as rt
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
@@ -96,7 +93,7 @@ if __name__ == "__main__":
     selected_model = "gpt-4.1-nano" if model_choice == "nano" else "gpt-4.1-mini"
 
     # 1. B_retriever.py의 함수를 호출하여 retriever 객체 생성
-    retriever = rt.get_retriever(documents_path="/home/data/data/", reuse_index=True)
+    retriever = rt.get_retriever(documents_path="/home/data/preprocess/json", reuse_index=True)
     
     # 2. retriever 객체를 사용하여 전체 RAG 체인 생성
     rag_chain = create_generation_chain(retriever=retriever, api_key=api_key, model_name=selected_model)
