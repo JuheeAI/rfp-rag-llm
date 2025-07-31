@@ -24,7 +24,7 @@ def extract_texts_from_json(json_data: dict) -> List[str]:
     if not isinstance(json_data, dict):
         raise ValueError("json_data는 딕셔너리여야 합니다.")
     
-    pages = json_data.get("페이지별데이터", [])
+    pages = json_data.get("페이지별_데이터") or json_data.get("페이지별데이터") or []
     raw_texts = []
 
     for page in pages:
@@ -71,8 +71,6 @@ def extract_texts_from_json(json_data: dict) -> List[str]:
             start_char = offset_mapping[start_idx][0]
             end_char = offset_mapping[min(end_idx, len(offset_mapping) - 1)][1]
             chunk_text = merged_text[start_char:end_char].strip()
-            if len(chunks) == 0 and start_idx == 0 and len(merged_text.strip()) <= max_tokens:
-                continue  
             if chunk_text:
                 chunks.append(chunk_text)
 

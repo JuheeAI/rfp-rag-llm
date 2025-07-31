@@ -47,6 +47,17 @@ python src/A_generation_faiss.py
 
 ---
 
+## 지원 Generation 모델
+
+| 모델 키 | 모델 경로|
+|---------|-----------------------------------|
+| `midm-mini` | `/home/models/llm/Midm-2.0-Mini-Instruct` |
+| 기타 | HuggingFace 호환 LLM이면 모두 지원 가능 (단, 시스템 요구사항 충족 필요) |
+
+> 로컬 모델 디렉토리를 사용하는 경우 `--llm_model_dir` 인자에 경로를 명시하세요.
+
+---
+
 ## 인덱스 저장 구조
 
 - 루트: `/home/data/faiss_db/{model_key}/`
