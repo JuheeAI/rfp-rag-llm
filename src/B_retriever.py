@@ -36,68 +36,98 @@ find_and_load_dotenv()
 def split_sentences(text):
     return re.split(r'(?<=[.!?])\s+', text.strip())
 
-# 문서 로딩 함수 (JSON 전용으로 수정)
+# 문서 로딩 함수 (확장된 메타데이터 반영하여여 수정)
 def load_documents(folder_path, limit_files=None):
     all_docs = []
     files = sorted([f for f in os.listdir(folder_path) if f.endswith(".json")])
     if limit_files:
         files = files[:limit_files]
 
-    for filename in tqdm(files, desc="📄 Loading documents"):
+    for filename in tqdm(files, desc="Loading documents"):
         file_path = os.path.join(folder_path, filename)
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-            사업명 = data.get("사업명", "")
-            공고번호 = data.get("공고번호", "")
-            페이지들 = data.get("페이지별_데이터", [])
+        metadata = data.get("csv_metadata", {})
+        page_texts = [
+            page.get("text", "").strip()
+            for page in data.get("pdf_data", [])
+            if page.get("text", "").strip()
+        ]
+        full_text = "\n".join(page_texts)
 
-            for page in 페이지들:
-                page_text = page.get("text", "")
-                if page_text.strip():
-                    all_docs.append(Document(
-                        page_content=page_text.strip(),
-                        metadata={"사업명": 사업명, "공고번호": 공고번호, "source": filename}
-                    ))
-        except Exception as e:
-            print(f"[!] {filename} 불러오기 실패: {e}")
+        if full_text:
+            all_docs.append(Document(
+                page_content=full_text,
+                metadata={
+                    "사업명": metadata.get("사업명", ""),
+                    "공고번호": metadata.get("공고 번호", ""),
+                    "공고차수": metadata.get("공고 차수", ""),
+                    "사업금액": metadata.get("사업 금액", ""),
+                    "발주기관": metadata.get("발주 기관", ""),
+                    "입찰참여시작일": metadata.get("입찰 참여 시작일", ""),
+                    "입찰참여마감일": metadata.get("입찰 참여 마감일", ""),
+                    "사업요약": metadata.get("사업 요약", ""),
+                    "파일명": metadata.get("파일명", ""),
+                    "source": filename
+                }
+            ))
     return all_docs
 
 
-# 청킹 함수
-def semantic_chunk_documents(documents, max_chunk_len=300):
+# 청킹 함수 (json에 - 숫자 - 형식이 많았기에 그에 맞게 수정
+def semantic_chunk_documents(documents, max_chunk_len=300, overlap_len=0):
     chunked_docs = []
-    for doc in tqdm(documents, desc="🔪 Chunking documents"):
+    for doc in tqdm(documents, desc="Chunking documents"):
         text = doc.text if hasattr(doc, "text") else doc.page_content
         metadata = doc.metadata
-        sentences = split_sentences(text)
+        sentences = re.split(r'(?<=[\.\?])\s+', text.strip())
 
         buffer = ""
+        last_sentences = []
+
         for sentence in sentences:
             if not sentence.strip():
                 continue
-            if re.match(r"^\d{1,2}\.\s", sentence) or sentence.startswith("■") or re.match(r"^[가-하]\)", sentence):
+
+            # 실제로 유효한 유일한 기준
+            if re.match(r"^- \d+ -", sentence):
                 if buffer.strip():
                     chunked_docs.append(Document(page_content=buffer.strip(), metadata=metadata))
                 buffer = sentence + " "
+                last_sentences = [sentence]
                 continue
+
             if len(buffer) + len(sentence) <= max_chunk_len:
                 buffer += sentence + " "
+                last_sentences.append(sentence)
             else:
                 chunked_docs.append(Document(page_content=buffer.strip(), metadata=metadata))
-                buffer = sentence + " "
+                buffer = " ".join(last_sentences[-overlap_len:]) + " " + sentence + " " if overlap_len > 0 else sentence + " "
+                last_sentences = last_sentences[-overlap_len:] + [sentence]
+
         if buffer.strip():
             chunked_docs.append(Document(page_content=buffer.strip(), metadata=metadata))
     return chunked_docs
 
-# FAISS 인덱스 빌드
+# FAISS 인덱스 빌드 (문장 단위가 아닌 전체 글단위로 수정)
 def build_faiss_index(docs, embedding, batch_size=50):
-    from langchain_community.vectorstores.faiss import FAISS
 
-    texts = [doc.page_content for doc in docs]
-    metadatas = [doc.metadata for doc in docs]
+    # 중복 제거
+    unique_pairs = {}
+    for doc in docs:
+        key = doc.page_content.strip()
+        if key not in unique_pairs:
+            unique_pairs[key] = doc.metadata
 
+    texts = list(unique_pairs.keys())
+    metadatas = list(unique_pairs.values())
+
+    # 너무 짧은 텍스트 필터링
+    filtered = [(t, m) for t, m in zip(texts, metadatas) if len(t) > 20]
+    texts, metadatas = zip(*filtered) if filtered else ([], [])
+
+    # 임베딩 수행
     embeddings = []
     print("\nEmbedding in batches...")
     for i in tqdm(range(0, len(texts), batch_size)):
@@ -107,27 +137,24 @@ def build_faiss_index(docs, embedding, batch_size=50):
 
     print(f"Total chunks: {len(texts)} | Total embeddings: {len(embeddings)}")
 
-    # zip으로 (text, embedding) 튜플 생성
-    text_embedding_pairs = list(zip(texts, embeddings))
-
-    # FAISS 인덱스 생성
     return FAISS.from_embeddings(
-        text_embeddings=text_embedding_pairs,
+        text_embeddings=list(zip(texts, embeddings)),
         embedding=embedding,
         metadatas=metadatas
     )
 
-
+    
 # 리트리버 생성
 def get_retriever(documents_path, index_path="/home/data/B_faiss_db/", reuse_index=True, k=5, limit_files=None):
     start_time = time.time()
-    documents = load_documents(documents_path, limit_files=limit_files)
-    chunks = semantic_chunk_documents(documents, max_chunk_len=300)
 
-    embedding = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        openai_api_key=os.getenv("OPENAI_API_KEY")
-    )
+    documents = load_documents(documents_path, limit_files=limit_files)
+    chunks = semantic_chunk_documents(documents, max_chunk_len=300, overlap_len=1)  
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY is not set.")
+    embedding = OpenAIEmbeddings(model="text-embedding-3-small", openai_api_key=api_key)
 
     if reuse_index and os.path.exists(index_path):
         print("Loading existing FAISS index...")
@@ -137,13 +164,12 @@ def get_retriever(documents_path, index_path="/home/data/B_faiss_db/", reuse_ind
         vector_db.save_local(index_path)
 
     retriever = vector_db.as_retriever(
-        search_type="mmr",
-        search_kwargs={"k": k, "fetch_k": k * 2}
+        search_type="similarity",  
+        search_kwargs={"k": k}
     )
 
     print(f"Retriever ready in {time.time() - start_time:.2f} seconds")
     return retriever
-
 
 
 # LLM QA 체인 생성
