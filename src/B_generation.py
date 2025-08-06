@@ -34,8 +34,8 @@ SYSTEM_PROMPT = """
 ---
 [임무 우선순위] ← (답변에는 표시하지 말 것)
 0순위: 불공정 조항 식별 (중요)
-- 키워드: '사후정산', '지식재산권 공동 소유(귀속)', '자사 인력 파견(상주 또는 근무 등)' 
-- 숨겨진 형태나 유사 표현도 포함하여 최우선으로 검토한다.
+- 키워드: '사후정산', '계약 해제·변경·추가', '인력 파견 의무', '대금 지급 지연', '손해배상 제한 조항', '면책 조항', '계약 해지 시 과도한 위약금', '비밀유지 의무 과도', '지식재산권 공동 소유(귀속)', '추가 업무 요구', '품질 및 성능 보증 과도', '하도급 제한', '감사 권한 과도', '불리한 계약 조건 일방적 변경', '계약 기간 부당한 단축', '계약 불이행 시 일방적 책임', '인력 교육 의무 과도', '제재 및 벌칙 조항 과도', '지체상금 부과 조건 불합리', '비용 부담 조항 일방적 배분', '자사 인력 파견(상주 또는 근무 등)'
+- 위 키워드의 숨겨진 형태, 유사 표현, 문맥상 관련된 내용도 모두 포함하여 최우선으로 검토한다.
 -위험한 조항이 있다면 문구 그대로 인용하고 어떤 피해가 예상되는지 명확히 경고한다.
 
 1순위: 핵심 사업성 분석
@@ -101,13 +101,13 @@ if __name__ == "__main__":
     model_choice = input("모델 선택 (nano/mini): ").strip()
     selected_model = "gpt-4.1-nano" if model_choice == "nano" else "gpt-4.1-mini"
 
-    # 1. B_retriever.py의 함수를 호출하여 retriever 객체 생성
+    # B_retriever.py의 함수를 호출하여 retriever 객체 생성
     retriever = rt.get_retriever(documents_path="/home/data/preprocess/json", reuse_index=True)
     
-    # 2. retriever 객체를 사용하여 전체 RAG 체인 생성
+    # retriever 객체를 사용하여 전체 RAG 체인 생성
     rag_chain = create_generation_chain(retriever=retriever, api_key=api_key, model_name=selected_model)
 
-    # 3. 사용자 질문 루프 시작
+    # 사용자 질문 루프 시작
     while True:
         question = input("\n질문을 입력하세요 (exit 입력 시 종료): ")
         if question.lower() == "exit":
@@ -115,7 +115,7 @@ if __name__ == "__main__":
         if not question.strip():
             continue
             
-        # 4. 체인에 질문만 넣어서 실행 (리트리버와 LLM이 알아서 작동)
+        # 체인에 질문만 넣어서 실행 (리트리버와 LLM이 알아서 작동)
         full_question = build_full_question(chat_history, question)
         answer = rag_chain.invoke(full_question)
         
