@@ -1,6 +1,8 @@
-import os
+import os, sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src import B_retriever as rt
+
 import getpass
-import B_retriever as rt
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -58,6 +60,7 @@ SYSTEM_PROMPT = """
 - 문맥에 있는 내용만 사용하며, 없는 내용은 "문서에 정보 없음"으로 명확히 말한다. 
 - 사용자의 요청이 없으면, 불필요한 우선순위 설명이나 추가 정보는 포함하지 않는다.
 - 기본 출력 형식은 마크다운이며, 가동성을 위해 적정한 이모지를 활용한다. 
+- **절대로 답변 전체를 코드 블록(```)으로 감싸지 마라.**
 
 
 ---
@@ -77,7 +80,7 @@ def build_full_question(chat_history: List[str], current_q: str) -> str:
 def create_generation_chain(retriever, api_key: str, model_name: str):
     llm = ChatOpenAI(
         model_name=model_name,
-        temperature=0.3,
+        temperature=0.2,
         api_key=api_key,
     )
 

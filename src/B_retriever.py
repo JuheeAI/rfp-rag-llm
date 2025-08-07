@@ -17,6 +17,7 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
+nltk.download('punkt_tab')
 nltk.download('punkt')
 load_dotenv()
 
@@ -44,9 +45,22 @@ def load_documents(folder_path, limit_files=None):
         ]
         full_text = "\n".join(page_texts)
 
-        if full_text:
+        # 검색 성능을 높이기 위해 중요한 메타데이터를 본문 텍스트 앞에 추가
+        metadata_header = (
+            f"[문서 요약 정보]\n"
+            f"- 사업명: {metadata.get('사업명', '정보 없음')}\n"
+            f"- 사업 금액: {metadata.get('사업 금액', '정보 없음')}\n"
+            f"- 발주 기관: {metadata.get('발주 기관', '정보 없음')}\n"
+            f"- 파일명: {metadata.get('파일명', '정보 없음')}\n\n"
+            f"- 사업 요약: {metadata.get('사업 요약', '정보 없음')}\n\n"
+        )
+        # 헤더와 실제 본문을 합쳐서 새로운 page_content를 만듦
+        content_with_metadata = metadata_header + full_text
+
+        if content_with_metadata:
+            # Document 객체를 만들 때, 메타데이터가 추가된 텍스트를 page_content로 사용
             all_docs.append(Document(
-                page_content=full_text,
+                page_content=content_with_metadata,
                 metadata={
                     "사업명": metadata.get("사업명", ""),
                     "공고번호": metadata.get("공고 번호", ""),
@@ -107,7 +121,7 @@ def get_retriever(documents_path, index_path="/home/data/B_faiss_db", reuse_inde
 
     chunks = semantic_token_chunk_documents(
         documents,
-        max_tokens=300,
+        max_tokens=500,
         overlap_tokens=50,
         model_name="text-embedding-3-small"
     )
@@ -225,7 +239,12 @@ def build_chain(retriever):
 
 
 if __name__ == "__main__":
-    retriever = get_retriever("/home/data/data/", reuse_index=True, limit_files=None)
+    retriever = get_retriever(
+        documents_path="/home/data/preprocess/json", 
+        index_path="/home/data/B_faiss_db", 
+        reuse_index=True, 
+        limit_files=None
+        )
     chain = build_chain(retriever)
     while True:
         query = input("\n 질문을 입력하세요 (exit 입력 시 종료): ")

@@ -64,21 +64,20 @@ SYSTEM_PROMPT = '''
     [답변]
 '''   
 
-def create_generation_chain():
+def create_generation_chain(retriever):
     print(">>>>> Start RAG Chain <<<<<")
-    llm_model_dir = "/home/models/llm/Midm-2.0-Mini-Instruct"
+    llm_model_dir = "/home/models/llm/Midm-2.0-Base-Instruct"
 
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_use_double_quant=True,
         bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_compute_dtype=torch.bfloat16,
     )
 
     tokenizer = AutoTokenizer.from_pretrained(llm_model_dir)
     model = AutoModelForCausalLM.from_pretrained(
         llm_model_dir,
-        torch_dtype=torch.bfloat16,
         device_map="auto",
         quantization_config=bnb_config,
     )
@@ -88,7 +87,7 @@ def create_generation_chain():
         model=model,
         tokenizer=tokenizer,
         max_new_tokens=512,
-        temperature=0.1,
+        temperature=0.2,
         return_full_text=False,
     )
 
@@ -96,13 +95,13 @@ def create_generation_chain():
     prompt = PromptTemplate.from_template(SYSTEM_PROMPT)
 
     chain = (
-        {"context": RunnablePassthrough(), "question": RunnablePassthrough()}
+        {"context": retriever | extract_context, "question": RunnablePassthrough()}
         | prompt
         | llm
         | StrOutputParser()
     )
 
-    return chain, tokenizer
+    return chain
 
 if __name__ == "__main__":
     from A_embedding import load_embedding_model
