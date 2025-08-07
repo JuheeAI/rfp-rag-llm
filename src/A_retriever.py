@@ -1,7 +1,7 @@
 import faiss
 import pickle
 import numpy as np
-from A_embedding_model import load_embedding_model
+from A_embedding import load_embedding_model
 from langchain_core.documents import Document
 
 def load_faiss_index(index_path):

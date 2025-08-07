@@ -1,6 +1,4 @@
 # 추가설정
-config/key.py
-data/raw/*
 .env
 
 

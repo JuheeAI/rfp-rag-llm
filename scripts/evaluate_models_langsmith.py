@@ -1,8 +1,8 @@
 import pandas as pd
 import json
 import os
-from A_retriever_faiss import load_langchain_retriever
-from A_embedding_model import load_embedding_model
+from A_retriever import load_langchain_retriever
+from A_embedding import load_embedding_model
 from B_retriever import get_retriever as get_retriever_B
 
 def convert_csv_to_langsmith_jsonl(csv_path, jsonl_path):

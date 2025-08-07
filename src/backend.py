@@ -9,14 +9,14 @@ from typing import Optional
 
 ##############################################################################
 ##### RAG 및 모델 체인 로딩 #####
-from src.A_generation_faiss import create_generation_chain as create_chain_A
+from src.A_generation import create_generation_chain as create_chain_A
 from src.B_generation import create_generation_chain as create_chain_B
 
 
 ##############################################################################
 ##### A 모델 리트리버 생성 #####
 # 이 로직은 서버 시작 시 한 번만 실행되어 메모리에 상주함
-from src.A_embedding_model import load_embedding_model 
+from src.A_embedding import load_embedding_model 
 from langchain_community.vectorstores import FAISS
 
 print(">>>>> Loading Open Source Model (Retriever A) <<<<<")
@@ -74,10 +74,10 @@ async def get_answer_stream(request: QueryRequest):
     if request.model_source == "Open Source":
         print("INFO: User Request Using Open Source Model")
         # chain_A는 이미 리트리버가 포함된 형태로 생성됨
-        # A_generation_faiss.py 구조에 따라 context를 직접 넘겨줘야 함
+        # A_generation.py 구조에 따라 context를 직접 넘겨줘야 함
         docs = retriever_A.invoke(query)
-        # extract_context 함수를 A_generation_faiss에서 가져와야 함
-        from src.A_generation_faiss import extract_context 
+        # extract_context 함수를 A_generation에서 가져와야 함
+        from src.A_generation import extract_context 
         context = extract_context(docs)
         
         # 스트리밍 응답 반환

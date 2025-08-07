@@ -4,7 +4,7 @@ import argparse
 from tqdm import tqdm
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
-from A_embedding_model import extract_texts_from_json, load_embedding_model
+from A_embedding import extract_texts_from_json, load_embedding_model
 
 def index_documents(json_dir, model_key, output_path):
     embedding_model = load_embedding_model(model_key)
