@@ -1,5 +1,5 @@
-# 발표 자료
-- [RFP 분석을 위한 RAG 기반 정보 추출 시스템]https://drive.google.com/file/d/16zEA8xrlwJu33fQ7QpyYIQ4PojXhSX0L/view?usp=sharing
+# 보고서 (발표 자료)
+- [RFP 분석을 위한 RAG 기반 정보 추출 시스템](https://drive.google.com/file/d/16zEA8xrlwJu33fQ7QpyYIQ4PojXhSX0L/view?usp=sharing)
 
 # 4팀 협업일지
 - 윤승호
