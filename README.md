@@ -28,6 +28,12 @@
 4. **Reference Check 옵션**
 	- 근거 문서 확인이 필요하면 Reference Check 활성화
 
+### 예시 사진
+![alt text](image.png)
+![alt text](image-1.png)
+
+---
+
 ## 1. 프로젝트 개요
 이 프로젝트는 자연어 처리(NLP) 및 대규모 언어모델(LLM) 지식을 바탕으로 
 기업 및 정부의 복잡한 형태의 제안요청서(RFP)를 효과적으로 분석·추출·요약하여  
