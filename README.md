@@ -1,3 +1,6 @@
+# 발표 자료
+- [RFP 분석을 위한 RAG 기반 정보 추출 시스템]https://drive.google.com/file/d/16zEA8xrlwJu33fQ7QpyYIQ4PojXhSX0L/view?usp=sharing
+
 # 4팀 협업일지
 - 윤승호
     LINK: [https://www.notion.so/yoonsnowdev/1d6219b29fc380a0b152d5457e2f4839?pvs=4](https://www.notion.so/1d6219b29fc380a0b152d5457e2f4839?pvs=21)
@@ -29,8 +32,8 @@
 	- 근거 문서 확인이 필요하면 Reference Check 활성화
 
 ### 예시 사진
-![alt text](image.png)
-![alt text](image-1.png)
+![alt text](data/image.png)
+![alt text](data/image-1.png)
 
 ---
 
