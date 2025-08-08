@@ -51,7 +51,7 @@ if "notice_shown" not in st.session_state:
 ########################################################################
 # UI 설정
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
-st.title("RFP Analyzer")
+st.title("Bidding Mate")
 st.caption("[ By 404AllFound ]")
 
 # 사이드바
