@@ -52,7 +52,7 @@ def extract_texts_from_json(json_data: dict) -> List[str]:
     input_ids = tokens["input_ids"]
 
     max_tokens = 512
-    stride = 64
+    stride = 450
 
     # 유효한 토큰 위치만 필터링
     valid_offsets = [(i, off) for i, off in enumerate(offset_mapping) if off != (0, 0)]
