@@ -193,7 +193,7 @@ RAG 시스템의 **Retriever**와 **Generator** 성능을 LangSmith에서 자동
 
 ### 10.2 LangSmith UI에서 평가 실행
 
-1. **Datasets → New Dataset** 에서 `langsmith_eval_A.jsonl` 업로드  
+1. **Datasets → New Dataset** 에서 `langsmith_eval_A.jsonl`, `langsmith_eval_B.jsonl` 업로드  
    - 필드 매핑은 자동으로 `inputs` / `outputs` 로 인식됨
 2. 상단 **Evaluate → New Evaluation** 클릭  
 3. **Choose Target** 단계에서 **No target function** 및 **Use dataset outputs** 옵션 선택  
@@ -201,7 +201,7 @@ RAG 시스템의 **Retriever**와 **Generator** 성능을 LangSmith에서 자동
 5. 평가 실행 → 결과 테이블에서 **score(0–5)** + **rationale(근거)** 확인
 
 ### 10.3 평가 축
-RAG 시스템 평가는 두 축으로 분리합니다
+RAG 시스템 평가는 두 가지를 사용합니다.
 1) **검색 컨텍스트 적합성 (Retrieval Quality)**  
 2) **생성 정확성/충실성 (Generation Faithfulness)**
 
